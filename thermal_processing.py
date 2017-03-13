@@ -2,7 +2,7 @@ import skvideo.io
 import skvideo.datasets
 import os 
 
-video = skvideo.io.vreader("FLIR0002.mp4")
+video = skvideo.io.vreader("videos/a1.mp4")
 
 def which(program):
     import os
