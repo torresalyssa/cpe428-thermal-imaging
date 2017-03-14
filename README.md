@@ -1,1 +1,1 @@
-To run this, you need `scikit-video` and ffmpeg installed.
+To run this, you need OpenCV and ffmpeg installed.
