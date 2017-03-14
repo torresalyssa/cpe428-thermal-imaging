@@ -10,7 +10,6 @@ def distance(p0, p1):
 def main():
    video = cv2.VideoCapture("videos/a1.mp4")
 
-   ret = True
    i = 0
 
    while video.isOpened():
