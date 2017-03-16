@@ -4,6 +4,9 @@ import cv2, math
 import numpy as np
 from matplotlib import pyplot as plt
 
+MEDIAN_FILTER_DIM = 5  # dimension of the median filter
+RECENT_FRAMES = 10     # number of frames to look back by
+
 def distance(p0, p1):
     return math.sqrt((p0[0] - p1[0])**2 + (p0[1] - p1[1])**2)
 
@@ -12,7 +15,7 @@ def main():
 
    i = 0
 
-   hands = []
+   handFrames = []
 
    while video.isOpened():
       ret, frame = video.read()
@@ -20,60 +23,38 @@ def main():
       if not ret:
          break
 
+      # convert to greyscale
       gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
       print('{} {}'.format(i, ret))
       i += 1
 
       # apply median filter
-      med = cv2.medianBlur(gray, 5)
+      med = cv2.medianBlur(gray, MEDIAN_FILTER_DIM)
 
-      # apply otsu's
-      ret, otsu = cv2.threshold(med, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-         
-      # find contours (note: this modifies the image so we create a copy)
-      contours,hierarchy = cv2.findContours(otsu.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-      
-      # find contour with largest area, a.k.a. the hand
-      handContour = max(contours, key=lambda c:cv2.contourArea(c))
+      # apply otsu's thresholding to get binary image of hand pixels
+      ret, otsu = cv2.threshold(med, 0, 255, 
+                                cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+      otsu = np.array(otsu == 255, dtype=int)
+      handFrames.append(otsu)
 
-      # create binary image of the hand
-      handBinary = otsu.copy()
-      handBinary.fill(0)
-      cv2.drawContours(handBinary, [handContour], 0, (255,255,255), -1)
-      handBinary = np.array(handBinary == 255, dtype=int)
+      # reduce search space of heat trace to be where the hand has 
+      # recently traveled
+      start = i-RECENT_FRAMES if i-RECENT_FRAMES >= 0 else 0
+      recent = np.logical_or.reduce(handFrames[start:])
+      recent = np.array(recent, dtype=int)
 
-      hands.append(handBinary)
-
+      # format search space so it works with OpenCV functions
+      searchSpace = np.subtract(recent, otsu) 
+      searchSpace[searchSpace == 1] = 255
+      searchSpace = np.array(searchSpace, dtype=np.uint8)
+   
       if i == 30:
 
-         allHands = np.logical_or.reduce(hands)
-         allHands = np.array(allHands, dtype=int)
-         searchSpace = np.subtract(handBinary, allHands)
-         #searchSpace = np.array(searchSpace == 1, dtype=int) 
+         searchImg = cv2.bitwise_and(med,med, mask=searchSpace)
 
-         print(allHands[482][65])
-         print(handBinary[482][65])
-         print(searchSpace[482][65])
-         
-         plt.subplot(121)
-         plt.imshow(allHands, cmap='gray')
-         plt.title("Combining previous hands")
-         plt.xticks([]), plt.yticks([])
-
-         plt.subplot(122)
-         plt.imshow(searchSpace, cmap='gray')
-         plt.title("Heat trace search space")
-         plt.xticks([]), plt.yticks([])
-
+         plt.imshow(searchImg, cmap='gray')
          plt.show()
-
-         '''
-         plt.subplot(121),plt.imshow(med, cmap='gray'),plt.title('Median Filtering')
-         plt.xticks([]), plt.yticks([])
-         plt.subplot(122),plt.imshow(thr, cmap='gray'),plt.title("Otsu's Thresholding")
-         plt.xticks([]), plt.yticks([])
-         plt.show()'''
 
 
    video.release()
