@@ -12,6 +12,8 @@ def main():
 
    i = 0
 
+   hands = []
+
    while video.isOpened():
       ret, frame = video.read()
 
@@ -23,43 +25,56 @@ def main():
       print('{} {}'.format(i, ret))
       i += 1
 
-      if i == 30:
-         # apply median filter
-         med = cv2.medianBlur(gray, 5)
+      # apply median filter
+      med = cv2.medianBlur(gray, 5)
 
-         # apply otsu's
-         ret, otsu = cv2.threshold(med, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+      # apply otsu's
+      ret, otsu = cv2.threshold(med, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
          
-         # find contours (note: this modifies otsu so we create a copy)
-         contours,hierarchy = cv2.findContours(np.copy(otsu), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+      # find contours (note: this modifies the image so we create a copy)
+      contours,hierarchy = cv2.findContours(otsu.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
       
-         # find contour with largest area, a.k.a. the hand
-         handContour = max(contours, key=lambda c:cv2.contourArea(c))
+      # find contour with largest area, a.k.a. the hand
+      handContour = max(contours, key=lambda c:cv2.contourArea(c))
 
-         # find centroid
-         M = cv2.moments(handContour)
-         cx = int(M['m10']/M['m00'])
-         cy = int(M['m01']/M['m00'])
-         centroid = [cx, cy]
+      # create binary image of the hand
+      handBinary = otsu.copy()
+      handBinary.fill(0)
+      cv2.drawContours(handBinary, [handContour], 0, (255,255,255), -1)
+      handBinary = np.array(handBinary == 255, dtype=int)
 
-         # compute convex hull 
-         hull = cv2.convexHull(handContour)
+      hands.append(handBinary)
 
-         # find fingertip
-         ft = max(hull, key=lambda h:distance(h[0], centroid))[0]
+      if i == 30:
 
-         plt.imshow(gray, cmap='gray'),plt.title("Finding fingertip")
-         plt.plot([centroid[0]], [centroid[1]], 'bo')
-         plt.plot([ft[0]], [ft[1]], 'ro')
+         allHands = np.logical_or.reduce(hands)
+         allHands = np.array(allHands, dtype=int)
+         searchSpace = np.subtract(handBinary, allHands)
+         #searchSpace = np.array(searchSpace == 1, dtype=int) 
+
+         print(allHands[482][65])
+         print(handBinary[482][65])
+         print(searchSpace[482][65])
+         
+         plt.subplot(121)
+         plt.imshow(allHands, cmap='gray')
+         plt.title("Combining previous hands")
          plt.xticks([]), plt.yticks([])
+
+         plt.subplot(122)
+         plt.imshow(searchSpace, cmap='gray')
+         plt.title("Heat trace search space")
+         plt.xticks([]), plt.yticks([])
+
          plt.show()
 
-
-         '''plt.subplot(121),plt.imshow(med, cmap='gray'),plt.title('Median Filtering')
+         '''
+         plt.subplot(121),plt.imshow(med, cmap='gray'),plt.title('Median Filtering')
          plt.xticks([]), plt.yticks([])
          plt.subplot(122),plt.imshow(thr, cmap='gray'),plt.title("Otsu's Thresholding")
          plt.xticks([]), plt.yticks([])
          plt.show()'''
+
 
    video.release()
 
